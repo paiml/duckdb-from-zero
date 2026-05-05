@@ -1,0 +1,187 @@
+metadata:
+  version: 1.0.0
+  created: '2026-05-05'
+  author: 'PAIML Engineering'
+  description: |
+    Provable contracts for the duckdb-reports crate of paiml/duckdb-from-zero
+    (Coursera "DuckDB from Zero" course companion). Five named runtime
+    invariants enforced inside each of the three reports (top_customers,
+    top_films, top_actors) after a successful query against the Pagila
+    Parquet fixtures. Each contract is asserted at runtime in
+    crates/duckdb-reports/src/lib.rs and proved by both the negative-path
+    tests in `mod tests` and the positive-path integration tests against
+    real Sakila data.
+  references:
+    - 'duckdb-from-zero README §Provable contracts'
+    - 'paiml/mysql-from-zero contracts/mysql-rust-v1.yaml — sibling spec'
+    - 'sql/pagila-analytics/*.sql — the queries the binary executes'
+
+equations:
+  row_count_exact:
+    formula: 'len(rows) == limit'
+    domain: 'rows ∈ Vec<T>, limit ∈ u32'
+    codomain: 'bool'
+    lean_theorem: Theorems.DuckdbReports.RowCountExact
+    postconditions:
+    - 'rows.len() == limit'
+
+  top_record_has_count:
+    formula: 'rows[0].count_field >= 1'
+    domain: 'rows ∈ Vec<T>, rows non-empty'
+    codomain: 'bool'
+    lean_theorem: Theorems.DuckdbReports.TopRecordHasCount
+    postconditions:
+    - 'rows[0].rental_count >= 1  (customers, films)'
+    - 'rows[0].film_count   >= 1  (actors)'
+
+  id_positive:
+    formula: 'forall r in rows. r.id > 0'
+    domain: 'rows ∈ Vec<T>'
+    codomain: 'bool'
+    lean_theorem: Theorems.DuckdbReports.IdPositive
+    postconditions:
+    - 'all rows have customer_id > 0  (customers)'
+    - 'all rows have film_id > 0      (films)'
+    - 'all rows have actor_id > 0     (actors)'
+
+  string_field_well_formed:
+    formula: 'forall r in rows. text_invariant(r)'
+    domain: 'rows ∈ Vec<T>'
+    codomain: 'bool'
+    lean_theorem: Theorems.DuckdbReports.StringFieldWellFormed
+    postconditions:
+    - 'name contains a space          (customers — "First Last")'
+    - 'title is non-empty             (films)'
+    - 'first_name + last_name non-empty (actors)'
+
+  count_descending:
+    formula: 'forall i in 0..len(rows)-1. rows[i].count >= rows[i+1].count'
+    domain: 'rows ∈ Vec<T>, ordered by query'
+    codomain: 'bool'
+    lean_theorem: Theorems.DuckdbReports.CountDescending
+    postconditions:
+    - 'rental_count is monotonically non-increasing (customers, films)'
+    - 'film_count   is monotonically non-increasing (actors)'
+
+proof_obligations:
+  - type: postcondition
+    property: 'Row count matches the requested limit'
+    formal: 'len(rows) == limit'
+    applies_to: [top_customers, top_films, top_actors]
+  - type: postcondition
+    property: 'Top record has at least one count'
+    formal: 'rows[0].count_field >= 1'
+    applies_to: [top_customers, top_films, top_actors]
+  - type: invariant
+    property: 'All ids are positive'
+    formal: 'forall r in rows. r.id > 0'
+    applies_to: [top_customers, top_films, top_actors]
+  - type: invariant
+    property: 'String fields are well-formed (non-empty / "First Last")'
+    formal: 'forall r in rows. text_invariant(r)'
+    applies_to: [top_customers, top_films, top_actors]
+  - type: invariant
+    property: 'Result is sorted by count descending'
+    formal: 'forall i. rows[i].count >= rows[i+1].count'
+    applies_to: [top_customers, top_films, top_actors]
+
+enforcement:
+  row_count_exact:
+    description: 'LIMIT N in the SQL must return exactly N rows on the Pagila Parquet fixtures.'
+    check: 'C1 assert_eq!(rows.len(), limit) inside each assert_contracts_*'
+    severity: 'ERROR'
+
+  top_record_has_count:
+    description: 'Top record must have ≥1 count — sentinel that the LEFT JOIN actually matched.'
+    check: 'C2 assert!(rows[0].rental_count or .film_count >= 1)'
+    severity: 'ERROR'
+
+  id_positive:
+    description: 'AUTO_INCREMENT ids start at 1 in Sakila/Pagila; zero or negative is data corruption.'
+    check: 'C3 loop assertion on every row.id'
+    severity: 'ERROR'
+
+  string_field_well_formed:
+    description: 'Names/titles must be well-formed: customer names are "First Last", film titles non-empty, actor names non-empty in both fields.'
+    check: 'C4 loop assertion on every row text field'
+    severity: 'ERROR'
+
+  count_descending:
+    description: 'ORDER BY count DESC must hold; reversed or unsorted output is a query bug.'
+    check: 'C5 pairwise assertion across the result vector'
+    severity: 'ERROR'
+
+falsification_tests:
+  - id: FALSIFY-DUCKDB-001
+    rule: 'Row count matches the requested limit'
+    prediction: 'For Pagila with default fixture data, customer/film/actor LEFT JOIN GROUP BY LIMIT N returns exactly N rows.'
+    test: 'top_*() runtime assert on rows.len() == limit; smoke-tested in CI against fetched Pagila Parquets and unit-tested via mod tests::*_contract_c1_violation.'
+    if_fails: 'The LIMIT clause was dropped from the SQL or the source has fewer than N rows in the fixture.'
+
+  - id: FALSIFY-DUCKDB-002
+    rule: 'Top record has at least one count'
+    prediction: 'The record at index 0 of each report has count_field >= 1 in any non-empty Pagila fixture.'
+    test: 'top_*() runtime assert on rows[0].count >= 1; mod tests::*_contract_c2_violation locks the negative path.'
+    if_fails: 'The LEFT JOIN is finding zero matches for every record — most likely the join predicate is wrong or the joined table is empty.'
+
+  - id: FALSIFY-DUCKDB-003
+    rule: 'All ids are positive'
+    prediction: 'AUTO_INCREMENT customer/film/actor ids start at 1, so every returned id is positive.'
+    test: 'top_*() loop asserts r.id > 0 on each row; mod tests::*_contract_c3_violation locks the negative path.'
+    if_fails: 'AUTO_INCREMENT was reset to 0 or negative ids were inserted out of band — data corruption signal.'
+
+  - id: FALSIFY-DUCKDB-004
+    rule: 'String fields are well-formed'
+    prediction: 'Customer names are space-separated First+Last; film titles are non-empty; actor names are non-empty in both fields.'
+    test: 'top_*() loop assertions; mod tests::*_contract_c4_violation locks the negative path.'
+    if_fails: 'A row has a malformed text field — would surface a data-quality issue in the upstream Pagila dump or an extraction bug in scripts/fetch-data.sh.'
+
+  - id: FALSIFY-DUCKDB-005
+    rule: 'Result is sorted by count descending'
+    prediction: 'Pairwise comparison rows[i].count >= rows[i+1].count holds for all valid i.'
+    test: 'top_*() pairwise assert across the result vector; mod tests::*_contract_c5_violation locks the negative path.'
+    if_fails: 'ORDER BY count DESC clause was removed or replaced with ASC — query produces wrong ranking.'
+
+qa_gate:
+  id: F-DUCKDB-001
+  name: 'DuckDB Reports Contract'
+  description: 'Five runtime invariants asserted in each top_*() function after the typed DuckDB query against Pagila Parquets.'
+  checks:
+    - 'row_count_exact'
+    - 'top_record_has_count'
+    - 'id_positive'
+    - 'string_field_well_formed'
+    - 'count_descending'
+  pass_criteria: 'All five falsification tests pass and runtime asserts never fire on the canonical Pagila fixture; negative-path unit tests in mod tests verify each assertion fires when its precondition is violated.'
+
+kani_harnesses:
+  - id: KANI-DUCKDB-001
+    obligation: 'Row count matches limit'
+    property: 'len(rows) == limit for any Pagila fixture with >= limit records'
+    bound: 4
+    strategy: exhaustive
+    harness: verify_row_count_exact
+  - id: KANI-DUCKDB-002
+    obligation: 'Top record has at least one count'
+    property: 'rows[0].count >= 1 when rows is non-empty'
+    bound: 4
+    strategy: exhaustive
+    harness: verify_top_record_has_count
+  - id: KANI-DUCKDB-003
+    obligation: 'All ids are positive'
+    property: 'forall r in rows. r.id > 0'
+    bound: 4
+    strategy: exhaustive
+    harness: verify_id_positive
+  - id: KANI-DUCKDB-004
+    obligation: 'String fields are well-formed'
+    property: 'forall r in rows. text_invariant(r)'
+    bound: 4
+    strategy: exhaustive
+    harness: verify_string_field_well_formed
+  - id: KANI-DUCKDB-005
+    obligation: 'Result is sorted by count descending'
+    property: 'forall i. rows[i].count >= rows[i+1].count'
+    bound: 4
+    strategy: exhaustive
+    harness: verify_count_descending

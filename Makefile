@@ -1,4 +1,4 @@
-.PHONY: help demo capstone verify clean fetch test fmt lint
+.PHONY: help demo capstone verify clean fetch test fmt lint coverage pmat
 
 help:
 	@echo "DuckDB From Zero — companion repo"
@@ -8,6 +8,8 @@ help:
 	@echo "  make capstone  — build and run the Rust duckdb-reports binary"
 	@echo "  make verify    — assert all headline counts (CI smoke test)"
 	@echo "  make test      — cargo test for the Rust crate"
+	@echo "  make coverage  — cargo llvm-cov line coverage report"
+	@echo "  make pmat      — pmat quality-gate (entropy excluded — small-repo metric artifact)"
 	@echo "  make fmt lint  — cargo fmt && cargo clippy"
 	@echo "  make clean     — wipe data/ and target/"
 
@@ -33,6 +35,12 @@ fmt:
 
 lint:
 	@cargo clippy --all-targets -- -D warnings
+
+coverage:
+	@cargo llvm-cov --release --workspace --show-missing-lines
+
+pmat:
+	@pmat quality-gate --checks dead-code,complexity,coverage,sections,satd,security,duplicates,provability
 
 clean:
 	@rm -rf data/ target/

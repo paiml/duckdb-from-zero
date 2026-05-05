@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 480" width="1280" height="480">
+<!-- HERO — paiml/duckdb-from-zero README banner.
+     Visual story: DuckDB CLI → read_parquet() → duckdb-rs Rust crate, with
+     a TPC-H sf=1 pillar on the right (6M lineitem rows the demo crunches
+     in ~23 ms). Same oxide-premium chassis as the mysql-from-zero hero. -->
+
+<defs>
+  <style>
+    .h { font-family: 'Segoe UI', 'Helvetica Neue', sans-serif; }
+    .m { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+    .label { font-family: 'Segoe UI', sans-serif; letter-spacing: 0.12em; }
+  </style>
+
+  <radialGradient id="bg" cx="50%" cy="40%" r="80%">
+    <stop offset="0%" stop-color="#1a2540"/>
+    <stop offset="100%" stop-color="#0e1726"/>
+  </radialGradient>
+  <linearGradient id="accent-strip" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#ffe125" stop-opacity="0.85"/>
+    <stop offset="50%" stop-color="#00b8d9" stop-opacity="0.85"/>
+    <stop offset="100%" stop-color="#9c84ff" stop-opacity="0.85"/>
+  </linearGradient>
+  <radialGradient id="zone-cli" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#ffe125" stop-opacity="0.20"/>
+    <stop offset="100%" stop-color="#ffe125" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="zone-parquet" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#36b37e" stop-opacity="0.18"/>
+    <stop offset="100%" stop-color="#36b37e" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="zone-rust" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#9c84ff" stop-opacity="0.20"/>
+    <stop offset="100%" stop-color="#9c84ff" stop-opacity="0"/>
+  </radialGradient>
+  <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto" markerUnits="strokeWidth">
+    <path d="M 0 0 L 12 7 L 0 14 Z" fill="#00b8d9"/>
+  </marker>
+</defs>
+
+<rect width="1280" height="480" fill="url(#bg)"/>
+
+<!-- Top accent strip -->
+<rect x="0" y="0" width="1280" height="6" fill="url(#accent-strip)"/>
+
+<!-- Title block — left third -->
+<g class="h">
+  <text x="60" y="92" font-size="44" font-weight="700" fill="#eeeeee">DuckDB from Zero</text>
+  <text x="60" y="132" font-size="20" fill="#a5d6ff" letter-spacing="0.05em">Rust for Data Engineering · Embedded SQL · Parquet-native · Capstone-ready</text>
+  <text x="60" y="162" font-size="14" fill="#ffe125" letter-spacing="0.10em" font-weight="700">3 LAB EXAMPLES · 22 TPC-H QUERIES · 5 RUNTIME CONTRACTS</text>
+</g>
+
+<!-- Three pipeline stops, evenly spaced -->
+<!-- Stop 1: duckdb CLI centered at x=240, y=300 -->
+<circle cx="240" cy="300" r="120" fill="url(#zone-cli)"/>
+<g id="stop-cli">
+  <rect x="160" y="240" width="160" height="120" rx="8" fill="#0e1726" stroke="#ffe125" stroke-width="3"/>
+  <rect x="160" y="240" width="160" height="32" rx="8" fill="#1a1d23" stroke="#ffe125" stroke-width="2.5"/>
+  <circle cx="178" cy="256" r="5" fill="#ff5630"/>
+  <circle cx="195" cy="256" r="5" fill="#ffab00"/>
+  <circle cx="212" cy="256" r="5" fill="#36b37e"/>
+  <text x="240" y="300" text-anchor="middle" class="m" font-size="16" font-weight="700" fill="#ffe125">duckdb</text>
+  <text x="240" y="324" text-anchor="middle" class="m" font-size="14" fill="#ffe125">-f tour.sql</text>
+  <text x="240" y="356" text-anchor="middle" class="label" font-size="14" font-weight="700" fill="#ffe125">CLI</text>
+</g>
+
+<!-- Stop 2: parquet centered at x=600, y=300 -->
+<circle cx="600" cy="300" r="120" fill="url(#zone-parquet)"/>
+<g id="stop-parquet">
+  <rect x="520" y="240" width="160" height="120" rx="8" fill="#0e1726" stroke="#36b37e" stroke-width="3"/>
+  <rect x="520" y="240" width="160" height="32" rx="8" fill="#1a1d23" stroke="#36b37e" stroke-width="2.5"/>
+  <text x="538" y="262" class="m" font-size="14" font-weight="700" fill="#7ee787">SQL</text>
+  <text x="600" y="296" text-anchor="middle" class="m" font-size="14" font-weight="700" fill="#7ee787">FROM 'film</text>
+  <text x="600" y="320" text-anchor="middle" class="m" font-size="14" fill="#7ee787">.parquet'</text>
+  <text x="600" y="356" text-anchor="middle" class="label" font-size="14" font-weight="700" fill="#36b37e">FILES → TABLES</text>
+</g>
+
+<!-- Stop 3: rust centered at x=960, y=300 -->
+<circle cx="960" cy="300" r="120" fill="url(#zone-rust)"/>
+<g id="stop-rust">
+  <rect x="880" y="240" width="160" height="120" rx="8" fill="#0e1726" stroke="#9c84ff" stroke-width="3.5"/>
+  <rect x="880" y="240" width="160" height="32" rx="8" fill="#1a1d23" stroke="#9c84ff" stroke-width="2.5"/>
+  <text x="898" y="262" class="m" font-size="14" font-weight="700" fill="#9c84ff">RS</text>
+  <text x="960" y="296" text-anchor="middle" class="m" font-size="14" font-weight="700" fill="#b8acff">duckdb-rs</text>
+  <text x="960" y="320" text-anchor="middle" class="m" font-size="14" fill="#b8acff">+ FromRow</text>
+  <text x="960" y="356" text-anchor="middle" class="label" font-size="14" font-weight="700" fill="#9c84ff">RUST</text>
+</g>
+
+<!-- Arrows between stops -->
+<line x1="330" y1="300" x2="510" y2="300" stroke="#00b8d9" stroke-width="3" marker-end="url(#arrow)"/>
+<line x1="690" y1="300" x2="870" y2="300" stroke="#00b8d9" stroke-width="3" marker-end="url(#arrow)"/>
+
+<!-- TPC-H pillar — right edge -->
+<g id="tpch-pillar">
+  <rect x="1100" y="200" width="140" height="200" rx="10" fill="#0e1726" stroke="#ffe125" stroke-width="3"/>
+  <rect x="1100" y="200" width="140" height="36" rx="10" fill="#7a5a00" stroke="#ffe125" stroke-width="2"/>
+  <text x="1170" y="224" text-anchor="middle" class="h" font-size="16" font-weight="700" fill="#eeeeee">TPC-H sf=1</text>
+  <line x1="1110" y1="252" x2="1230" y2="252" stroke="#ffe125" stroke-width="1.5" opacity="0.5"/>
+  <text x="1118" y="276" class="m" font-size="14" fill="#ffe9a0">lineitem 6M</text>
+  <text x="1118" y="298" class="m" font-size="14" fill="#ffe9a0">orders 1.5M</text>
+  <text x="1118" y="320" class="m" font-size="14" fill="#ffe9a0">customer</text>
+  <text x="1118" y="342" class="m" font-size="14" fill="#ffe9a0">part / supplier</text>
+  <text x="1118" y="364" class="m" font-size="14" fill="#ffe9a0">+ Pagila · NYC</text>
+  <text x="1170" y="390" text-anchor="middle" class="label" font-size="11" fill="#ffe125">Q1 in ~23 ms</text>
+</g>
+
+<!-- Bottom contracts strip — single line -->
+<g id="contracts-strip">
+  <rect x="60" y="420" width="1160" height="36" rx="6" fill="#161b22" stroke="#7ee787" stroke-width="2" fill-opacity="0.85"/>
+  <text x="80" y="444" class="h" font-size="14" font-weight="700" fill="#7ee787">Provable contracts:</text>
+  <text x="240" y="444" class="m" font-size="14" fill="#eeeeee">rows == limit  ·  top.count ≥ 1  ·  id &gt; 0  ·  text well-formed  ·  ORDER BY DESC sort invariant</text>
+</g>
+
+<!-- GRID PROTOCOL MANIFEST
+  template: HERO (README banner)
+  canvas: 1280x480
+  zones: cli@(240,300) | parquet@(600,300) | rust@(960,300) | tpch-pillar@(1100..1240, 200..400)
+  text_elements: 19
+  palette_colors: [#0e1726, #1a2540, #1a1d23, #161b22, #ffe125, #ffe9a0, #ffab00, #ff5630, #36b37e, #7ee787, #9c84ff, #b8acff, #00b8d9, #a5d6ff, #7a5a00, #eeeeee]
+  bounds_check: all elements within 0,0 → 1280,480
+-->
+</svg>

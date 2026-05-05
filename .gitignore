@@ -1,5 +1,8 @@
 /data/
 /target/
+/.pmat/
+/.pmat-metrics/
+/.pv/
 *.duckdb
 *.duckdb.wal
 .DS_Store
