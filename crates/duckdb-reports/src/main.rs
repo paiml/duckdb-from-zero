@@ -5,7 +5,11 @@ use duckdb_reports::{open, top_actors, top_customers, top_films};
 use std::path::Path;
 
 #[derive(Parser, Debug)]
-#[command(name = "duckdb-reports", version, about = "Sakila reports via DuckDB Parquet")]
+#[command(
+    name = "duckdb-reports",
+    version,
+    about = "Sakila reports via DuckDB Parquet"
+)]
 struct Cli {
     #[arg(long, value_enum, default_value_t = Report::Customers)]
     report: Report,

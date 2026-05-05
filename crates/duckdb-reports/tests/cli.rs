@@ -22,7 +22,11 @@ fn cli_customers_emits_valid_json() {
         .args(["--report", "customers", "--limit", "3"])
         .output()
         .expect("spawn binary");
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     let stdout = std::str::from_utf8(&out.stdout).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(stdout).expect("valid JSON");
     let arr = parsed.as_array().expect("top-level array");
@@ -49,8 +53,7 @@ fn cli_actors_emits_valid_json() {
         .output()
         .expect("spawn binary");
     assert!(out.status.success());
-    let parsed: serde_json::Value =
-        serde_json::from_slice(&out.stdout).expect("valid JSON");
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout).expect("valid JSON");
     assert_eq!(parsed.as_array().unwrap().len(), 4);
 }
 
@@ -71,7 +74,11 @@ fn cli_writes_out_file_with_subdir_parent() {
         ])
         .output()
         .expect("spawn binary");
-    assert!(out.status.success(), "stderr: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(out_path.exists(), "expected {:?} to exist", out_path);
     let written = std::fs::read_to_string(&out_path).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&written).expect("file is JSON");
@@ -90,7 +97,10 @@ fn cli_writes_out_file_with_no_parent_dir() {
     let bare = "report.json";
     let out = Command::new(env!("CARGO_BIN_EXE_duckdb-reports"))
         .current_dir(&tmp)
-        .env("PAGILA_ABS", workspace_root().join("data/pagila").to_str().unwrap())
+        .env(
+            "PAGILA_ABS",
+            workspace_root().join("data/pagila").to_str().unwrap(),
+        )
         .args(["--report", "films", "--limit", "1", "--out", bare])
         .output()
         .expect("spawn binary");
