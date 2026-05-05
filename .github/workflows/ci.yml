@@ -1,0 +1,120 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-D warnings"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Matrix entries do the actual work. The `gate` aggregator below is the
+  # status check the org's main-branch ruleset keys off of — it requires
+  # a check named literally `gate`, which matrix expansion doesn't emit.
+  gate-matrix:
+    name: gate-matrix (${{ matrix.toolchain }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: ["1.95.0", "stable"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: gate-${{ matrix.toolchain }}
+
+      - name: Install DuckDB CLI
+        run: |
+          curl -fsSL https://install.duckdb.org/ | sh
+          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+
+      - name: Install prebuilt CLIs (pv + pmat)
+        if: matrix.toolchain == 'stable'
+        env:
+          PV_VERSION: v0.31.2
+          PMAT_VERSION: v3.16.0
+        run: |
+          set -euo pipefail
+          install_dir="$RUNNER_TEMP/prebuilt-bin"
+          mkdir -p "$install_dir"
+          for tool_spec in \
+            "pv:paiml/aprender:${PV_VERSION}:pv-${PV_VERSION}-x86_64-unknown-linux-gnu" \
+            "pmat:paiml/paiml-mcp-agent-toolkit:${PMAT_VERSION}:pmat-${PMAT_VERSION}-x86_64-unknown-linux-gnu"
+          do
+            IFS=: read -r bin repo ver archive <<< "$tool_spec"
+            url="https://github.com/${repo}/releases/download/${ver}/${archive}.tar.gz"
+            echo "Downloading $bin from $url"
+            curl -sSfL "$url" | tar xz -C "$install_dir" || true
+            if [ -f "$install_dir/$archive/$bin" ]; then
+              mv "$install_dir/$archive/$bin" "$install_dir/$bin"
+              chmod +x "$install_dir/$bin"
+              "$install_dir/$bin" --version || true
+            fi
+          done
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Fetch fixtures
+        run: make fetch
+
+      - name: Verify fixtures
+        run: make verify
+
+      - name: Test
+        run: cargo test --workspace --all-targets --release
+
+      - name: Release build
+        run: cargo build --release --workspace
+
+      - name: Capstone smoke (customers --limit 3)
+        run: cargo run --release --bin duckdb-reports -- --report customers --limit 3
+
+      - name: Lint contracts (pv)
+        if: matrix.toolchain == 'stable'
+        run: pv lint contracts/ || true
+
+      - name: pmat comply
+        if: matrix.toolchain == 'stable'
+        run: pmat comply || true
+
+  # Aggregator. The branch ruleset on `main` requires a status check named
+  # exactly `gate`; the matrix above only emits `gate-matrix (toolchain)`
+  # rows. This job collapses the matrix into one check name auto-merge can
+  # find.
+  gate:
+    name: gate
+    needs: [gate-matrix]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Verify all jobs succeeded
+        run: |
+          if [ "${{ needs.gate-matrix.result }}" != "success" ]; then
+            echo "::error::gate-matrix failed (result=${{ needs.gate-matrix.result }})"
+            exit 1
+          fi
+          echo "✓ all gates passed"

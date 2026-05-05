@@ -3,6 +3,7 @@
 /.pmat/
 /.pmat-metrics/
 /.pv/
+contracts/.pv/
 *.duckdb
 *.duckdb.wal
 .DS_Store

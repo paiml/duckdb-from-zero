@@ -1,6 +1,15 @@
-# DuckDB From Zero — Companion Repo
+<p align="center">
+  <img src="assets/hero.svg" alt="duckdb-from-zero — TPC-H + Pagila + Rust capstone, three lab examples in the Rust for Data Engineering specialization" width="1280" />
+</p>
 
-![DuckDB From Zero hero](assets/hero.png)
+[![CI](https://github.com/paiml/duckdb-from-zero/actions/workflows/ci.yml/badge.svg)](https://github.com/paiml/duckdb-from-zero/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![MSRV](https://img.shields.io/badge/MSRV-1.95-orange.svg)](rust-toolchain.toml)
+[![pmat comply](https://img.shields.io/badge/pmat%20comply-COMPLIANT-brightgreen.svg)](Makefile)
+[![pv lint](https://img.shields.io/badge/pv%20lint-PASS-brightgreen.svg)](contracts/)
+[![coverage](https://img.shields.io/badge/coverage-99.16%25-brightgreen.svg)](#quality-status)
+
+# DuckDB From Zero — Companion Repo
 
 The runnable companion to the Coursera course **DuckDB From Zero**, part of the
 *Rust for Data Engineering* specialization.

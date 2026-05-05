@@ -64,26 +64,71 @@ equations:
     - 'film_count   is monotonically non-increasing (actors)'
 
 proof_obligations:
+  # C1 row_count_exact ─────────────────────────────────
   - type: postcondition
-    property: 'Row count matches the requested limit'
+    property: 'Row count matches the requested limit (customers)'
     formal: 'len(rows) == limit'
-    applies_to: [top_customers, top_films, top_actors]
+    applies_to: top_customers
   - type: postcondition
-    property: 'Top record has at least one count'
-    formal: 'rows[0].count_field >= 1'
-    applies_to: [top_customers, top_films, top_actors]
+    property: 'Row count matches the requested limit (films)'
+    formal: 'len(rows) == limit'
+    applies_to: top_films
+  - type: postcondition
+    property: 'Row count matches the requested limit (actors)'
+    formal: 'len(rows) == limit'
+    applies_to: top_actors
+  # C2 top_record_has_count ────────────────────────────
+  - type: postcondition
+    property: 'Top customer has at least one rental'
+    formal: 'rows[0].rental_count >= 1'
+    applies_to: top_customers
+  - type: postcondition
+    property: 'Top film has at least one rental'
+    formal: 'rows[0].rental_count >= 1'
+    applies_to: top_films
+  - type: postcondition
+    property: 'Top actor has at least one film'
+    formal: 'rows[0].film_count >= 1'
+    applies_to: top_actors
+  # C3 id_positive ─────────────────────────────────────
   - type: invariant
-    property: 'All ids are positive'
-    formal: 'forall r in rows. r.id > 0'
-    applies_to: [top_customers, top_films, top_actors]
+    property: 'All customer_ids are positive'
+    formal: 'forall r in rows. r.customer_id > 0'
+    applies_to: top_customers
   - type: invariant
-    property: 'String fields are well-formed (non-empty / "First Last")'
-    formal: 'forall r in rows. text_invariant(r)'
-    applies_to: [top_customers, top_films, top_actors]
+    property: 'All film_ids are positive'
+    formal: 'forall r in rows. r.film_id > 0'
+    applies_to: top_films
   - type: invariant
-    property: 'Result is sorted by count descending'
-    formal: 'forall i. rows[i].count >= rows[i+1].count'
-    applies_to: [top_customers, top_films, top_actors]
+    property: 'All actor_ids are positive'
+    formal: 'forall r in rows. r.actor_id > 0'
+    applies_to: top_actors
+  # C4 string_field_well_formed ────────────────────────
+  - type: invariant
+    property: 'Customer names are space-separated First Last'
+    formal: "forall r in rows. r.name.contains(' ')"
+    applies_to: top_customers
+  - type: invariant
+    property: 'Film titles are non-empty'
+    formal: 'forall r in rows. !r.title.is_empty()'
+    applies_to: top_films
+  - type: invariant
+    property: 'Actor first_name and last_name are non-empty'
+    formal: 'forall r in rows. !r.first_name.is_empty() && !r.last_name.is_empty()'
+    applies_to: top_actors
+  # C5 count_descending ────────────────────────────────
+  - type: invariant
+    property: 'Customers sorted by rental_count descending'
+    formal: 'forall i. rows[i].rental_count >= rows[i+1].rental_count'
+    applies_to: top_customers
+  - type: invariant
+    property: 'Films sorted by rental_count descending'
+    formal: 'forall i. rows[i].rental_count >= rows[i+1].rental_count'
+    applies_to: top_films
+  - type: invariant
+    property: 'Actors sorted by film_count descending'
+    formal: 'forall i. rows[i].film_count >= rows[i+1].film_count'
+    applies_to: top_actors
 
 enforcement:
   row_count_exact:
@@ -112,35 +157,90 @@ enforcement:
     severity: 'ERROR'
 
 falsification_tests:
-  - id: FALSIFY-DUCKDB-001
-    rule: 'Row count matches the requested limit'
-    prediction: 'For Pagila with default fixture data, customer/film/actor LEFT JOIN GROUP BY LIMIT N returns exactly N rows.'
-    test: 'top_*() runtime assert on rows.len() == limit; smoke-tested in CI against fetched Pagila Parquets and unit-tested via mod tests::*_contract_c1_violation.'
-    if_fails: 'The LIMIT clause was dropped from the SQL or the source has fewer than N rows in the fixture.'
+  # C1 row_count_exact — one falsification per report ─────
+  - id: FALSIFY-DUCKDB-001-C
+    rule: 'Customer row count matches limit'
+    prediction: 'top_customers(conn, N) returns exactly N rows on the Pagila fixture.'
+    test: 'mod tests::customers_contract_c1_violation forces a panic when len != limit.'
+    if_fails: 'LIMIT clause dropped from sql/pagila-analytics/top-customers.sql.'
+  - id: FALSIFY-DUCKDB-001-F
+    rule: 'Film row count matches limit'
+    prediction: 'top_films(conn, N) returns exactly N rows on the Pagila fixture.'
+    test: 'mod tests::films_contract_c1_violation forces a panic when len != limit.'
+    if_fails: 'LIMIT clause dropped from top_films_in SQL.'
+  - id: FALSIFY-DUCKDB-001-A
+    rule: 'Actor row count matches limit'
+    prediction: 'top_actors(conn, N) returns exactly N rows on the Pagila fixture.'
+    test: 'mod tests::actors_contract_c1_violation forces a panic when len != limit.'
+    if_fails: 'LIMIT clause dropped from top_actors_in SQL.'
 
-  - id: FALSIFY-DUCKDB-002
-    rule: 'Top record has at least one count'
-    prediction: 'The record at index 0 of each report has count_field >= 1 in any non-empty Pagila fixture.'
-    test: 'top_*() runtime assert on rows[0].count >= 1; mod tests::*_contract_c2_violation locks the negative path.'
-    if_fails: 'The LEFT JOIN is finding zero matches for every record — most likely the join predicate is wrong or the joined table is empty.'
+  # C2 top_record_has_count ──────────────────────────────
+  - id: FALSIFY-DUCKDB-002-C
+    rule: 'Top customer has ≥1 rental'
+    prediction: 'rows[0].rental_count >= 1 for any non-empty Pagila fixture.'
+    test: 'mod tests::customers_contract_c2_violation; integration::customers_report_matches_contracts.'
+    if_fails: 'LEFT JOIN customer→rental matches zero — wrong join key or empty rental table.'
+  - id: FALSIFY-DUCKDB-002-F
+    rule: 'Top film has ≥1 rental'
+    prediction: 'rows[0].rental_count >= 1 for any non-empty Pagila fixture.'
+    test: 'mod tests::films_contract_c2_violation; integration::films_report_matches_contracts.'
+    if_fails: 'film→inventory→rental chain is broken.'
+  - id: FALSIFY-DUCKDB-002-A
+    rule: 'Top actor has ≥1 film'
+    prediction: 'rows[0].film_count >= 1 for any non-empty Pagila fixture.'
+    test: 'mod tests::actors_contract_c2_violation; integration::actors_report_matches_contracts.'
+    if_fails: 'film_actor table empty or join predicate wrong.'
 
-  - id: FALSIFY-DUCKDB-003
-    rule: 'All ids are positive'
-    prediction: 'AUTO_INCREMENT customer/film/actor ids start at 1, so every returned id is positive.'
-    test: 'top_*() loop asserts r.id > 0 on each row; mod tests::*_contract_c3_violation locks the negative path.'
-    if_fails: 'AUTO_INCREMENT was reset to 0 or negative ids were inserted out of band — data corruption signal.'
+  # C3 id_positive ───────────────────────────────────────
+  - id: FALSIFY-DUCKDB-003-C
+    rule: 'All customer_ids are positive'
+    prediction: 'Sakila customer.customer_id starts at 1 (AUTO_INCREMENT).'
+    test: 'mod tests::customers_contract_c3_violation forces panic on customer_id=0.'
+    if_fails: 'Data corruption — fetch-data.sh emitted bad TSV or the parquet file was altered.'
+  - id: FALSIFY-DUCKDB-003-F
+    rule: 'All film_ids are positive'
+    prediction: 'Sakila film.film_id starts at 1 (AUTO_INCREMENT).'
+    test: 'mod tests::films_contract_c3_violation forces panic on film_id=0.'
+    if_fails: 'Data corruption in fetch-data.sh extraction.'
+  - id: FALSIFY-DUCKDB-003-A
+    rule: 'All actor_ids are positive'
+    prediction: 'Sakila actor.actor_id starts at 1 (AUTO_INCREMENT).'
+    test: 'mod tests::actors_contract_c3_violation forces panic on actor_id=0.'
+    if_fails: 'Data corruption in fetch-data.sh extraction.'
 
-  - id: FALSIFY-DUCKDB-004
-    rule: 'String fields are well-formed'
-    prediction: 'Customer names are space-separated First+Last; film titles are non-empty; actor names are non-empty in both fields.'
-    test: 'top_*() loop assertions; mod tests::*_contract_c4_violation locks the negative path.'
-    if_fails: 'A row has a malformed text field — would surface a data-quality issue in the upstream Pagila dump or an extraction bug in scripts/fetch-data.sh.'
+  # C4 string_field_well_formed ──────────────────────────
+  - id: FALSIFY-DUCKDB-004-C
+    rule: 'Customer name is "First Last"'
+    prediction: 'Sakila customer first_name and last_name are both populated; concat with space yields a name with a space.'
+    test: "mod tests::customers_contract_c4_violation forces panic when name lacks a space."
+    if_fails: 'first_name or last_name was NULL → concat returns a single-token name → contract trips.'
+  - id: FALSIFY-DUCKDB-004-F
+    rule: 'Film title is non-empty'
+    prediction: 'Sakila film.title is NOT NULL and non-empty for all rows.'
+    test: 'mod tests::films_contract_c4_violation forces panic on empty title.'
+    if_fails: 'film row with empty title in the fixture — data corruption.'
+  - id: FALSIFY-DUCKDB-004-A
+    rule: 'Actor names are non-empty'
+    prediction: 'Sakila actor.first_name and actor.last_name are NOT NULL and non-empty.'
+    test: 'mod tests::actors_contract_c4_violation forces panic on empty first_name.'
+    if_fails: 'actor row with empty name field — data corruption.'
 
-  - id: FALSIFY-DUCKDB-005
-    rule: 'Result is sorted by count descending'
-    prediction: 'Pairwise comparison rows[i].count >= rows[i+1].count holds for all valid i.'
-    test: 'top_*() pairwise assert across the result vector; mod tests::*_contract_c5_violation locks the negative path.'
-    if_fails: 'ORDER BY count DESC clause was removed or replaced with ASC — query produces wrong ranking.'
+  # C5 count_descending ──────────────────────────────────
+  - id: FALSIFY-DUCKDB-005-C
+    rule: 'Customers sorted by rental_count DESC'
+    prediction: 'rows[i].rental_count >= rows[i+1].rental_count holds pairwise.'
+    test: 'mod tests::customers_contract_c5_violation forces panic on ascending pair.'
+    if_fails: 'ORDER BY clause removed or flipped to ASC.'
+  - id: FALSIFY-DUCKDB-005-F
+    rule: 'Films sorted by rental_count DESC'
+    prediction: 'rows[i].rental_count >= rows[i+1].rental_count holds pairwise.'
+    test: 'mod tests::films_contract_c5_violation forces panic on ascending pair.'
+    if_fails: 'ORDER BY clause removed or flipped to ASC.'
+  - id: FALSIFY-DUCKDB-005-A
+    rule: 'Actors sorted by film_count DESC'
+    prediction: 'rows[i].film_count >= rows[i+1].film_count holds pairwise.'
+    test: 'mod tests::actors_contract_c5_violation forces panic on ascending pair.'
+    if_fails: 'ORDER BY clause removed or flipped to ASC.'
 
 qa_gate:
   id: F-DUCKDB-001
