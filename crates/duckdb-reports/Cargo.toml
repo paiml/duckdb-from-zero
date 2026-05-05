@@ -1,0 +1,20 @@
+[package]
+name = "duckdb-reports"
+version = "0.1.0"
+edition = "2021"
+description = "Three Sakila/Pagila analytics reports against DuckDB Parquet files"
+license = "MIT"
+
+[dependencies]
+duckdb = { version = "1.1", features = ["bundled"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "duckdb-reports"
+path = "src/main.rs"

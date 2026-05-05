@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/duckdb-reports"]
+resolver = "2"
