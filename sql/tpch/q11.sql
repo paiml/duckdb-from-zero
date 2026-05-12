@@ -1,3 +1,5 @@
+-- TPC-H Q11: Important Stock Identification — parts whose total supply value in a nation exceeds a fraction of stock
+--
 SELECT
     ps_partkey,
     sum(ps_supplycost * ps_availqty) AS value

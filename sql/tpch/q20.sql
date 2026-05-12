@@ -1,3 +1,5 @@
+-- TPC-H Q20: Potential Part Promotion — suppliers in a nation with surplus stock of parts matching a name fragment
+--
 SELECT
     s_name,
     s_address

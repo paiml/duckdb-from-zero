@@ -1,3 +1,5 @@
+-- TPC-H Q18: Large Volume Customer — top 100 customers whose orders had a single lineitem exceeding a threshold
+--
 SELECT
     c_name,
     c_custkey,

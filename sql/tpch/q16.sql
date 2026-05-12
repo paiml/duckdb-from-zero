@@ -1,3 +1,5 @@
+-- TPC-H Q16: Parts/Supplier Relationship — count of suppliers per part for parts of a given type, brand, size set
+--
 SELECT
     p_brand,
     p_type,

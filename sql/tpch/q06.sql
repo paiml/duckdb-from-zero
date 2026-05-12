@@ -1,3 +1,5 @@
+-- TPC-H Q06: Forecasting Revenue Change — discount-adjusted revenue lost on a discount/quantity/date filter
+--
 SELECT
     sum(l_extendedprice * l_discount) AS revenue
 FROM

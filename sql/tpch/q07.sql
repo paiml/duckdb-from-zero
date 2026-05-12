@@ -1,3 +1,5 @@
+-- TPC-H Q07: Volume Shipping — gross discounted revenue between two nations across two consecutive years
+--
 SELECT
     supp_nation,
     cust_nation,

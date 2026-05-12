@@ -1,5 +1,40 @@
+//! # duckdb-reports
+//!
 //! Three Sakila/Pagila analytics reports built on DuckDB's Parquet support,
-//! each enforced by five named runtime contracts that match `contracts/duckdb-rust-v1.yaml`.
+//! each enforced by five named runtime contracts that match
+//! [`contracts/duckdb-rust-v1.yaml`](../../../contracts/duckdb-rust-v1.yaml).
+//!
+//! ## Reports
+//!
+//! | Function           | Returns                | Source files                                                        |
+//! |--------------------|------------------------|---------------------------------------------------------------------|
+//! | [`top_customers`]  | [`Vec<TopCustomer>`]   | `customer.parquet`, `rental.parquet`                                |
+//! | [`top_films`]      | [`Vec<TopFilm>`]       | `film.parquet`, `inventory.parquet`, `rental.parquet`               |
+//! | [`top_actors`]     | [`Vec<TopActor>`]      | `actor.parquet`, `film_actor.parquet`                               |
+//!
+//! ## Provable contracts (C1–C5)
+//!
+//! After every successful query the result vector is checked against five
+//! contracts named in the YAML spec and re-asserted at runtime:
+//!
+//! 1. **`row_count_exact`** — `rows.len() == limit`
+//! 2. **`top_record_has_count`** — `rows[0].count_field >= 1`
+//! 3. **`id_positive`** — every primary key is `> 0`
+//! 4. **`string_field_well_formed`** — text fields satisfy a per-report invariant
+//! 5. **`count_descending`** — count column is monotonically non-increasing
+//!
+//! A breach panics with the contract name in the message; both the positive
+//! and negative path of each rule are covered by the unit tests in this crate.
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use duckdb_reports::{open, top_customers};
+//! let conn = open()?;
+//! let rows = top_customers(&conn, 10)?;
+//! assert_eq!(rows.len(), 10);
+//! # Ok::<(), anyhow::Error>(())
+//! ```
 
 use anyhow::{Context, Result};
 use duckdb::{params, Connection};
@@ -29,41 +64,72 @@ fn resolve_pagila_root(manifest_dir: &str, exists: impl Fn(&str) -> bool) -> Str
         .into_owned()
 }
 
+/// One row of the "top customers by rental count" report.
 #[derive(Debug, Serialize)]
 pub struct TopCustomer {
+    /// Sakila `customer.customer_id` — primary key, contract C3 requires `> 0`.
     pub customer_id: i32,
+    /// `"First Last"` rendering; contract C4 requires an embedded space.
     pub name: String,
+    /// Count of rentals joined from `rental.parquet`; contracts C2 + C5.
     pub rental_count: i64,
+    /// Sakila `customer.email`, nullable in the source schema.
     pub email: Option<String>,
 }
 
+/// One row of the "top films by rental count" report.
 #[derive(Debug, Serialize)]
 pub struct TopFilm {
+    /// Sakila `film.film_id` — primary key, contract C3 requires `> 0`.
     pub film_id: i32,
+    /// Sakila `film.title`; contract C4 requires non-empty.
     pub title: String,
+    /// Count of rentals joined via `inventory.parquet`; contracts C2 + C5.
     pub rental_count: i64,
 }
 
+/// One row of the "top actors by distinct film count" report.
 #[derive(Debug, Serialize)]
 pub struct TopActor {
+    /// Sakila `actor.actor_id` — primary key, contract C3 requires `> 0`.
     pub actor_id: i32,
+    /// Sakila `actor.first_name`; contract C4 requires non-empty.
     pub first_name: String,
+    /// Sakila `actor.last_name`; contract C4 requires non-empty.
     pub last_name: String,
+    /// Distinct films via `film_actor.parquet`; contracts C2 + C5.
     pub film_count: i64,
 }
 
+/// Open a fresh in-memory DuckDB connection.
+///
+/// All three reports run against this same connection — DuckDB resolves the
+/// `'…/customer.parquet'` literals to its built-in Parquet scanner.
 pub fn open() -> Result<Connection> {
     Connection::open_in_memory().context("failed to open in-memory DuckDB")
 }
 
+/// Run the top-customers-by-rental-count report.
+///
+/// Joins `customer.parquet` with `rental.parquet` from the Pagila fixture
+/// directory and returns the first `limit` rows ordered by descending rental
+/// count. Panics if any of the five named contracts (C1–C5) is violated.
 pub fn top_customers(conn: &Connection, limit: u32) -> Result<Vec<TopCustomer>> {
     top_customers_in(conn, limit, &pagila_root())
 }
 
+/// Run the top-films-by-rental-count report.
+///
+/// Joins `film.parquet` → `inventory.parquet` → `rental.parquet` from the
+/// Pagila fixture directory. Same contract guarantees as [`top_customers`].
 pub fn top_films(conn: &Connection, limit: u32) -> Result<Vec<TopFilm>> {
     top_films_in(conn, limit, &pagila_root())
 }
 
+/// Run the top-actors-by-distinct-film-count report.
+///
+/// Joins `actor.parquet` with `film_actor.parquet` from the Pagila fixture
+/// directory. Same contract guarantees as [`top_customers`].
 pub fn top_actors(conn: &Connection, limit: u32) -> Result<Vec<TopActor>> {
     top_actors_in(conn, limit, &pagila_root())
 }
@@ -71,9 +137,14 @@ pub fn top_actors(conn: &Connection, limit: u32) -> Result<Vec<TopActor>> {
 // `*_in` helpers take an explicit Pagila directory so the production wrappers
 // stay parameter-free and the negative-path tests can point them at a
 // non-existent dir to exercise the `?` error-propagation lines.
+//
+// Each report is split into three pieces — `build_*_sql` (pure SQL builder),
+// `map_*_row` (row deserializer), and `run_query_*` (prepare + query + collect
+// + contracts). The split lets unit tests inject a SQL whose result columns
+// have the wrong type so every `?` arm in the row-mapper is covered.
 
-fn top_customers_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopCustomer>> {
-    let sql = format!(
+fn build_customer_sql(dir: &str) -> String {
+    format!(
         "SELECT c.customer_id, \
                 c.first_name || ' ' || c.last_name AS name, \
                 COUNT(r.rental_id) AS rental_count, \
@@ -84,24 +155,11 @@ fn top_customers_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopC
          ORDER BY rental_count DESC \
          LIMIT ?",
         dir
-    );
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt
-        .query_map(params![limit], |r| {
-            Ok(TopCustomer {
-                customer_id: r.get(0)?,
-                name: r.get(1)?,
-                rental_count: r.get(2)?,
-                email: r.get(3)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    assert_contracts_customers(&rows, limit as usize);
-    Ok(rows)
+    )
 }
 
-fn top_films_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopFilm>> {
-    let sql = format!(
+fn build_film_sql(dir: &str) -> String {
+    format!(
         "SELECT f.film_id, f.title, COUNT(r.rental_id) AS rental_count \
          FROM '{0}/film.parquet' f \
          LEFT JOIN '{0}/inventory.parquet' i ON i.film_id = f.film_id \
@@ -110,23 +168,11 @@ fn top_films_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopFilm>
          ORDER BY rental_count DESC \
          LIMIT ?",
         dir
-    );
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt
-        .query_map(params![limit], |r| {
-            Ok(TopFilm {
-                film_id: r.get(0)?,
-                title: r.get(1)?,
-                rental_count: r.get(2)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    assert_contracts_films(&rows, limit as usize);
-    Ok(rows)
+    )
 }
 
-fn top_actors_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopActor>> {
-    let sql = format!(
+fn build_actor_sql(dir: &str) -> String {
+    format!(
         "SELECT a.actor_id, a.first_name, a.last_name, \
                 COUNT(DISTINCT fa.film_id) AS film_count \
          FROM '{0}/actor.parquet' a \
@@ -135,20 +181,72 @@ fn top_actors_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopActo
          ORDER BY film_count DESC \
          LIMIT ?",
         dir
-    );
-    let mut stmt = conn.prepare(&sql)?;
+    )
+}
+
+fn map_customer_row(r: &duckdb::Row<'_>) -> duckdb::Result<TopCustomer> {
+    Ok(TopCustomer {
+        customer_id: r.get(0)?,
+        name: r.get(1)?,
+        rental_count: r.get(2)?,
+        email: r.get(3)?,
+    })
+}
+
+fn map_film_row(r: &duckdb::Row<'_>) -> duckdb::Result<TopFilm> {
+    Ok(TopFilm {
+        film_id: r.get(0)?,
+        title: r.get(1)?,
+        rental_count: r.get(2)?,
+    })
+}
+
+fn map_actor_row(r: &duckdb::Row<'_>) -> duckdb::Result<TopActor> {
+    Ok(TopActor {
+        actor_id: r.get(0)?,
+        first_name: r.get(1)?,
+        last_name: r.get(2)?,
+        film_count: r.get(3)?,
+    })
+}
+
+fn run_query_customers(conn: &Connection, limit: u32, sql: &str) -> Result<Vec<TopCustomer>> {
+    let mut stmt = conn.prepare(sql)?;
     let rows = stmt
-        .query_map(params![limit], |r| {
-            Ok(TopActor {
-                actor_id: r.get(0)?,
-                first_name: r.get(1)?,
-                last_name: r.get(2)?,
-                film_count: r.get(3)?,
-            })
-        })?
+        .query_map(params![limit], map_customer_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_contracts_customers(&rows, limit as usize);
+    Ok(rows)
+}
+
+fn run_query_films(conn: &Connection, limit: u32, sql: &str) -> Result<Vec<TopFilm>> {
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt
+        .query_map(params![limit], map_film_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_contracts_films(&rows, limit as usize);
+    Ok(rows)
+}
+
+fn run_query_actors(conn: &Connection, limit: u32, sql: &str) -> Result<Vec<TopActor>> {
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt
+        .query_map(params![limit], map_actor_row)?
         .collect::<Result<Vec<_>, _>>()?;
     assert_contracts_actors(&rows, limit as usize);
     Ok(rows)
+}
+
+fn top_customers_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopCustomer>> {
+    run_query_customers(conn, limit, &build_customer_sql(dir))
+}
+
+fn top_films_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopFilm>> {
+    run_query_films(conn, limit, &build_film_sql(dir))
+}
+
+fn top_actors_in(conn: &Connection, limit: u32, dir: &str) -> Result<Vec<TopActor>> {
+    run_query_actors(conn, limit, &build_actor_sql(dir))
 }
 
 // Provable contracts — formal spec: contracts/duckdb-rust-v1.yaml
@@ -536,6 +634,76 @@ mod tests {
     fn top_actors_in_returns_err_for_missing_data_dir() {
         let conn = open().expect("open in-memory DuckDB");
         let r = top_actors_in(&conn, 5, "/nonexistent/duckdb/from/zero/dir");
+        assert!(r.is_err());
+    }
+
+    // SQL builders must produce a `LIMIT ?` placeholder that the runner binds.
+
+    #[test]
+    fn build_customer_sql_embeds_dir_and_limit_placeholder() {
+        let sql = build_customer_sql("/some/dir");
+        assert!(sql.contains("'/some/dir/customer.parquet'"));
+        assert!(sql.contains("'/some/dir/rental.parquet'"));
+        assert!(sql.ends_with("LIMIT ?"));
+    }
+
+    #[test]
+    fn build_film_sql_embeds_dir_and_limit_placeholder() {
+        let sql = build_film_sql("/some/dir");
+        assert!(sql.contains("'/some/dir/film.parquet'"));
+        assert!(sql.contains("'/some/dir/inventory.parquet'"));
+        assert!(sql.contains("'/some/dir/rental.parquet'"));
+        assert!(sql.ends_with("LIMIT ?"));
+    }
+
+    #[test]
+    fn build_actor_sql_embeds_dir_and_limit_placeholder() {
+        let sql = build_actor_sql("/some/dir");
+        assert!(sql.contains("'/some/dir/actor.parquet'"));
+        assert!(sql.contains("'/some/dir/film_actor.parquet'"));
+        assert!(sql.ends_with("LIMIT ?"));
+    }
+
+    // Row-deserializer error paths: feed each `run_query_*` a SELECT whose
+    // column types do not match the struct fields, forcing `r.get::<_, T>(i)?`
+    // inside the corresponding `map_*_row` helper to return Err. This covers
+    // the `?` propagation arms that are otherwise unreachable when the real
+    // Pagila parquet schema is used.
+
+    #[test]
+    fn run_query_customers_propagates_row_mapper_error_on_bad_types() {
+        // customer_id expected i32 but we hand back a VARCHAR.
+        let conn = open().expect("open");
+        let bad =
+            "SELECT 'not-an-int'::VARCHAR, 'A B', 1::BIGINT, NULL::VARCHAR FROM range(?) LIMIT ?";
+        // range(?) consumes the bind once; LIMIT ? consumes it again. We only
+        // want one prepared parameter, so wrap with an explicit LIMIT and drop
+        // the FROM range parameter — DuckDB will still parse the column types.
+        let _ = bad; // keep for clarity; below is the actual minimal repro.
+        let sql = "SELECT 'not-an-int'::VARCHAR AS a, 'A B' AS b, 1::BIGINT AS c, NULL::VARCHAR AS d FROM range(5) LIMIT ?";
+        let r = run_query_customers(&conn, 5, sql);
+        assert!(
+            r.is_err(),
+            "expected row-mapper to surface a type-mismatch error"
+        );
+    }
+
+    #[test]
+    fn run_query_films_propagates_row_mapper_error_on_bad_types() {
+        let conn = open().expect("open");
+        // film_id expected i32 but VARCHAR provided.
+        let sql = "SELECT 'oops'::VARCHAR AS a, 'title' AS b, 1::BIGINT AS c FROM range(5) LIMIT ?";
+        let r = run_query_films(&conn, 5, sql);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn run_query_actors_propagates_row_mapper_error_on_bad_types() {
+        let conn = open().expect("open");
+        // actor_id expected i32 but VARCHAR provided.
+        let sql =
+            "SELECT 'oops'::VARCHAR AS a, 'F' AS b, 'L' AS c, 1::BIGINT AS d FROM range(5) LIMIT ?";
+        let r = run_query_actors(&conn, 5, sql);
         assert!(r.is_err());
     }
 }

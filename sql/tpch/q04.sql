@@ -1,3 +1,5 @@
+-- TPC-H Q04: Order Priority Checking — count orders by priority that had at least one lineitem late
+--
 SELECT
     o_orderpriority,
     count(*) AS order_count

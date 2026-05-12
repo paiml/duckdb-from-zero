@@ -1,3 +1,5 @@
+-- TPC-H Q13: Customer Distribution — distribution of customers by number of orders, excluding a comment pattern
+--
 SELECT
     c_count,
     count(*) AS custdist

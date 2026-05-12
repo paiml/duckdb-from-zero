@@ -1,3 +1,5 @@
+-- TPC-H Q15: Top Supplier — find the supplier(s) contributing the most revenue in a quarter
+--
 WITH revenue AS (
     SELECT
         l_suppkey AS supplier_no,
