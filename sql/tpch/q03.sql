@@ -1,3 +1,5 @@
+-- TPC-H Q03: Shipping Priority — top 10 unshipped orders by revenue for a market segment as of a cutoff date
+--
 SELECT
     l_orderkey,
     sum(l_extendedprice * (1 - l_discount)) AS revenue,

@@ -1,3 +1,5 @@
+-- TPC-H Q12: Shipping Modes and Order Priority — counts of high/low priority orders per ship-mode that arrived late
+--
 SELECT
     l_shipmode,
     sum(

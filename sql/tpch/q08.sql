@@ -1,3 +1,5 @@
+-- TPC-H Q08: National Market Share — share of revenue for a nation within a region over two years for one part type
+--
 SELECT
     o_year,
     sum(

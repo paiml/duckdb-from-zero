@@ -1,3 +1,5 @@
+-- TPC-H Q21: Suppliers Who Kept Orders Waiting — top 100 suppliers in a nation with the most late shipments
+--
 SELECT
     s_name,
     count(*) AS numwait

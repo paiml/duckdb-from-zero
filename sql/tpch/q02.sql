@@ -1,3 +1,5 @@
+-- TPC-H Q02: Minimum Cost Supplier — find the lowest-cost supplier for each part of a given size/type in a region
+--
 SELECT
     s_acctbal,
     s_name,

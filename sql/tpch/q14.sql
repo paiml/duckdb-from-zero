@@ -1,3 +1,5 @@
+-- TPC-H Q14: Promotion Effect — share of revenue from promotional parts in a given month
+--
 SELECT
     100.00 * sum(
         CASE WHEN p_type LIKE 'PROMO%' THEN

@@ -1,3 +1,5 @@
+-- TPC-H Q01: Pricing Summary Report — discount/tax/quantity aggregates over lineitem shipped before a cutoff date
+--
 SELECT
     l_returnflag,
     l_linestatus,

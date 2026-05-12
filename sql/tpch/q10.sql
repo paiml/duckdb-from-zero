@@ -1,3 +1,5 @@
+-- TPC-H Q10: Returned Item Reporting — top 20 customers by lost revenue from returned lineitems in a quarter
+--
 SELECT
     c_custkey,
     c_name,

@@ -1,3 +1,5 @@
+-- TPC-H Q19: Discounted Revenue — revenue from three brand/container/quantity/shipmode combinations
+--
 SELECT
     sum(l_extendedprice * (1 - l_discount)) AS revenue
 FROM

@@ -1,3 +1,5 @@
+-- TPC-H Q09: Product Type Profit Measure — profit by nation and order-year for parts whose name matches a substring
+--
 SELECT
     nation,
     o_year,

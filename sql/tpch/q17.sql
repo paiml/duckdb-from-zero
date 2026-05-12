@@ -1,3 +1,5 @@
+-- TPC-H Q17: Small-Quantity-Order Revenue — average yearly revenue lost on small orders of a brand/container
+--
 SELECT
     sum(l_extendedprice) / 7.0 AS avg_yearly
 FROM

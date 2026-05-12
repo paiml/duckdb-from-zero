@@ -1,3 +1,5 @@
+-- TPC-H Q22: Global Sales Opportunity — countries whose customers have above-average balance and no recent orders
+--
 SELECT
     cntrycode,
     count(*) AS numcust,

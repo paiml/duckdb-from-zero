@@ -1,3 +1,5 @@
+-- TPC-H Q05: Local Supplier Volume — revenue from supplier–customer pairs in the same region for a given year
+--
 SELECT
     n_name,
     sum(l_extendedprice * (1 - l_discount)) AS revenue
