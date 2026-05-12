@@ -48,9 +48,28 @@ Then:
     make demo         # SQL tour: 01-tour, 02-files-as-tables, 03-tpch-q1
     make capstone     # Rust binary: customers, films, actors reports
     make verify       # CI smoke test: assert TPC-H + Pagila headline counts
-    make test         # cargo test --release (28 tests)
+    make test         # cargo test --release (32 tests)
     make lint         # cargo clippy --all-targets -- -D warnings
     make clean        # rm -rf data/ target/
+
+### Standalone demos
+
+One script per concept — each auto-fetches fixtures, prints a banner per step,
+and can be run independently:
+
+    make demo-1-tour     # DuckDB feature tour (the 3 lab SQL files)
+    make demo-2-pagila   # 3 raw Pagila analytics queries
+    make demo-3-tpch     # all 22 TPC-H benchmark queries, timed
+    make demo-4-rust     # Rust capstone binary, 3 contract-enforced reports
+    make demo-all        # run every demo in sequence
+
+The TPC-H demo accepts a query list:
+
+    scripts/demo-3-tpch.sh 1 6 9     # only Q1, Q6, Q9
+
+The Rust capstone demo accepts a limit:
+
+    scripts/demo-4-rust.sh 5         # --limit 5; defaults to 10
 
 The Rust capstone binary takes flags directly:
 
