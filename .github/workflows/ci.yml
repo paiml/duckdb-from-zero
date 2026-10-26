@@ -11,22 +11,22 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: "-D warnings"
+  DUCKDB_VERSION: "1.5.2"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Matrix entries do the actual work. The `gate` aggregator below is the
-  # status check the org's main-branch ruleset keys off of — it requires
-  # a check named literally `gate`, which matrix expansion doesn't emit.
+  # The `gate` aggregator below is the status check the main-branch ruleset
+  # keys off of; matrix expansion does not emit a check with that bare name.
   gate-matrix:
     name: gate-matrix (${{ matrix.toolchain }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        toolchain: ["1.95.0", "stable"]
+        toolchain: ["1.95.0"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,39 +38,27 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: actions/cache@v4
         with:
-          shared-key: gate-${{ matrix.toolchain }}
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ matrix.toolchain }}-
 
       - name: Install DuckDB CLI
         run: |
-          curl -fsSL https://install.duckdb.org/ | sh
+          curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="${DUCKDB_VERSION}" sh
           echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
 
-      - name: Install prebuilt CLIs (pv + pmat)
-        if: matrix.toolchain == 'stable'
-        env:
-          PV_VERSION: v0.31.2
-          PMAT_VERSION: v3.16.0
-        run: |
-          set -euo pipefail
-          install_dir="$RUNNER_TEMP/prebuilt-bin"
-          mkdir -p "$install_dir"
-          for tool_spec in \
-            "pv:paiml/aprender:${PV_VERSION}:pv-${PV_VERSION}-x86_64-unknown-linux-gnu" \
-            "pmat:paiml/paiml-mcp-agent-toolkit:${PMAT_VERSION}:pmat-${PMAT_VERSION}-x86_64-unknown-linux-gnu"
-          do
-            IFS=: read -r bin repo ver archive <<< "$tool_spec"
-            url="https://github.com/${repo}/releases/download/${ver}/${archive}.tar.gz"
-            echo "Downloading $bin from $url"
-            curl -sSfL "$url" | tar xz -C "$install_dir" || true
-            if [ -f "$install_dir/$archive/$bin" ]; then
-              mv "$install_dir/$archive/$bin" "$install_dir/$bin"
-              chmod +x "$install_dir/$bin"
-              "$install_dir/$bin" --version || true
-            fi
-          done
-          echo "$install_dir" >> "$GITHUB_PATH"
+      - name: Cache fixtures
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: fixtures-${{ runner.os }}-${{ env.DUCKDB_VERSION }}-${{ hashFiles('scripts/fetch-data.sh') }}
 
       - name: Format
         run: cargo fmt --all -- --check
@@ -93,28 +81,65 @@ jobs:
       - name: Capstone smoke (customers --limit 3)
         run: cargo run --release --bin duckdb-reports -- --report customers --limit 3
 
-      - name: Lint contracts (pv)
-        if: matrix.toolchain == 'stable'
-        run: pv lint contracts/ || true
+  # Quality tools run as separate pinned jobs, not in the learner setup.
+  pv-lint:
+    name: pv-lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pv
+        env:
+          PV_VERSION: v0.31.2
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          archive="pv-${PV_VERSION}-x86_64-unknown-linux-gnu"
+          curl -sSfL "https://github.com/paiml/aprender/releases/download/${PV_VERSION}/${archive}.tar.gz" | tar xz -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/${archive}/pv" "$RUNNER_TEMP/bin/pv"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/pv" --version
+
+      - name: Lint contracts
+        run: pv lint contracts/
+
+  pmat-comply:
+    name: pmat-comply
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pmat
+        env:
+          PMAT_VERSION: v3.16.0
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          archive="pmat-${PMAT_VERSION}-x86_64-unknown-linux-gnu"
+          curl -sSfL "https://github.com/paiml/paiml-mcp-agent-toolkit/releases/download/${PMAT_VERSION}/${archive}.tar.gz" | tar xz -C "$RUNNER_TEMP"
+          install -m 0755 "$RUNNER_TEMP/${archive}/pmat" "$RUNNER_TEMP/bin/pmat"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/pmat" --version
 
       - name: pmat comply
-        if: matrix.toolchain == 'stable'
-        run: pmat comply || true
+        run: pmat comply
 
-  # Aggregator. The branch ruleset on `main` requires a status check named
-  # exactly `gate`; the matrix above only emits `gate-matrix (toolchain)`
-  # rows. This job collapses the matrix into one check name auto-merge can
-  # find.
   gate:
     name: gate
-    needs: [gate-matrix]
-    runs-on: ubuntu-latest
+    needs: [gate-matrix, pv-lint, pmat-comply]
+    runs-on: ubuntu-24.04
     if: always()
     steps:
       - name: Verify all jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          if [ "${{ needs.gate-matrix.result }}" != "success" ]; then
-            echo "::error::gate-matrix failed (result=${{ needs.gate-matrix.result }})"
-            exit 1
-          fi
-          echo "✓ all gates passed"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::a gate job did not succeed (results: $RESULTS)"
+              exit 1
+            fi
+          done
+          echo "all gates passed"
