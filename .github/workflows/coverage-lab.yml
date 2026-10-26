@@ -1,0 +1,76 @@
+# Nightly coverage measurement. It never runs on a pull request or a push
+# and no other job depends on it. A red run opens or updates one issue.
+name: coverage-lab
+
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95.0"
+          components: llvm-tools-preview
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-coverage-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-coverage-${{ runner.os }}-
+
+      - name: Install DuckDB CLI
+        run: |
+          curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="${DUCKDB_VERSION}" sh
+          echo "$HOME/.duckdb/cli/${DUCKDB_VERSION}" >> "$GITHUB_PATH"
+
+      - name: Cache fixtures
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: fixtures-${{ runner.os }}-${{ env.DUCKDB_VERSION }}-${{ hashFiles('scripts/fetch-data.sh') }}
+
+      - name: Fetch fixtures
+        run: make fetch
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.8.5
+
+      - name: Line coverage must stay at 100%
+        run: cargo llvm-cov --release --workspace --fail-under-lines 100
+
+      - name: Open or update the coverage issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          n=$(gh issue list --search "coverage-lab in:title" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "Still red: $RUN_URL"
+          else
+            gh issue create --title "coverage-lab: nightly coverage run is red" --body "Nightly coverage run failed: $RUN_URL"
+          fi
