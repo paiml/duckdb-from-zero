@@ -1,0 +1,56 @@
+name: canary
+
+# Weekly check that the learner build still works on the newest hosted images
+# and the newest stable Rust, before a learner finds out.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  learner-build:
+    name: learner-build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: canary-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            canary-${{ runner.os }}-
+
+      - name: Install DuckDB CLI
+        run: |
+          curl -fsSL https://install.duckdb.org/ | sh
+          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+
+      - name: Fetch fixtures
+        run: make fetch
+
+      - name: Verify fixtures
+        run: make verify
+
+      - name: Test
+        run: cargo test --workspace --all-targets --release
+
+      - name: Capstone smoke (customers --limit 3)
+        run: cargo run --release --bin duckdb-reports -- --report customers --limit 3
