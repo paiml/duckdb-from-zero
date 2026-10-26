@@ -30,9 +30,18 @@ download + NYC Taxi download). Subsequent calls are instant.
 
 ## Installation
 
-One-line install for each prerequisite:
+Install the prerequisites for your OS. These are the same commands CI runs.
 
-    curl -fsSL https://install.duckdb.org/ | sh    # DuckDB CLI 1.5+ → ~/.local/bin/duckdb
+### Linux (Ubuntu 24.04)
+
+    curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="1.5.2" sh
+    export PATH="$HOME/.duckdb/cli/1.5.2:$PATH"   # add this line to your shell profile
+    curl -sSf https://sh.rustup.rs | sh            # rustup; rust-toolchain.toml pins the rest
+
+### macOS
+
+    curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="1.5.2" sh
+    export PATH="$HOME/.duckdb/cli/1.5.2:$PATH"   # add this line to your shell profile
     curl -sSf https://sh.rustup.rs | sh            # rustup; rust-toolchain.toml pins the rest
 
 Then:
@@ -67,7 +76,7 @@ The Rust capstone binary takes flags directly:
 
 ## Prerequisites
 
-- DuckDB CLI 1.1+ (`curl https://install.duckdb.org/ | sh`)
+- DuckDB CLI 1.5.2 (see Installation)
 - Rust 1.95+ (use rustup; `rust-toolchain.toml` will pin automatically)
 - ~500 MB free disk for fixtures
 
