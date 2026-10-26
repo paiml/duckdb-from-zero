@@ -35,13 +35,13 @@ Install the prerequisites for your OS. These are the same commands CI runs.
 ### Linux (Ubuntu 24.04)
 
     curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="1.5.2" sh
-    echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"   # CI only; locally add ~/.duckdb/cli/latest to PATH
+    export PATH="$HOME/.duckdb/cli/1.5.2:$PATH"   # add this line to your shell profile
     curl -sSf https://sh.rustup.rs | sh            # rustup; rust-toolchain.toml pins the rest
 
 ### macOS
 
-    curl -fsSL https://install.duckdb.org/ | sh
-    echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"   # CI only; locally add ~/.duckdb/cli/latest to PATH
+    curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="1.5.2" sh
+    export PATH="$HOME/.duckdb/cli/1.5.2:$PATH"   # add this line to your shell profile
     curl -sSf https://sh.rustup.rs | sh            # rustup; rust-toolchain.toml pins the rest
 
 Then:

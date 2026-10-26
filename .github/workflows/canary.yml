@@ -41,7 +41,7 @@ jobs:
       - name: Install DuckDB CLI
         run: |
           curl -fsSL https://install.duckdb.org/ | sh
-          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+          dirname "$(ls -d "$HOME"/.duckdb/cli/*/duckdb | sort -V | tail -1)" >> "$GITHUB_PATH"
 
       - name: Fetch fixtures
         run: make fetch

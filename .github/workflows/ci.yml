@@ -52,7 +52,7 @@ jobs:
       - name: Install DuckDB CLI
         run: |
           curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="${DUCKDB_VERSION}" sh
-          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+          echo "$HOME/.duckdb/cli/${DUCKDB_VERSION}" >> "$GITHUB_PATH"
 
       - name: Cache fixtures
         uses: actions/cache@v4
@@ -154,7 +154,7 @@ jobs:
       - name: Install DuckDB CLI
         run: |
           curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="${DUCKDB_VERSION}" sh
-          echo "$HOME/.duckdb/cli/latest" >> "$GITHUB_PATH"
+          echo "$HOME/.duckdb/cli/${DUCKDB_VERSION}" >> "$GITHUB_PATH"
 
       - name: Cache fixtures
         uses: actions/cache@v4
