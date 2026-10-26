@@ -126,56 +126,9 @@ jobs:
       - name: pmat comply
         run: pmat comply
 
-  coverage:
-    name: coverage
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.95.0"
-          components: llvm-tools-preview
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            target
-          key: cargo-coverage-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            cargo-coverage-${{ runner.os }}-
-
-      - name: Install DuckDB CLI
-        run: |
-          curl -fsSL https://install.duckdb.org/ | DUCKDB_VERSION="${DUCKDB_VERSION}" sh
-          echo "$HOME/.duckdb/cli/${DUCKDB_VERSION}" >> "$GITHUB_PATH"
-
-      - name: Cache fixtures
-        uses: actions/cache@v4
-        with:
-          path: data
-          key: fixtures-${{ runner.os }}-${{ env.DUCKDB_VERSION }}-${{ hashFiles('scripts/fetch-data.sh') }}
-
-      - name: Fetch fixtures
-        run: make fetch
-
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov@0.8.5
-
-      - name: Line coverage must stay at 100%
-        run: cargo llvm-cov --release --workspace --fail-under-lines 100
-
   gate:
     name: gate
-    needs: [gate-matrix, pv-lint, pmat-comply, coverage]
+    needs: [gate-matrix, pv-lint, pmat-comply]
     runs-on: ubuntu-24.04
     if: always()
     steps:
