@@ -18,3 +18,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "duckdb-reports"
 path = "src/main.rs"
+
+[[example]]
+name = "polars_df"
+required-features = ["duckdb/polars"]
