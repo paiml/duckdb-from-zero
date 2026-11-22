@@ -20,7 +20,7 @@ echo "[fetch] TPC-H lineitem count = 6001215 ✓"
 # statement_timeout, schema-qualified names, multi-line CREATE TYPE blocks).
 # We sidestep the schema entirely: extract each `COPY public.<table> ... FROM
 # stdin;` block out of pagila-data.sql into a TSV, then let DuckDB's
-# read_csv_auto infer types when writing each Parquet file.
+# read_csv infer types when writing each Parquet file.
 if [ ! -f "$DATA/pagila/film.parquet" ]; then
     echo "[fetch] downloading Pagila…"
     TMPDIR=$(mktemp -d)
@@ -58,11 +58,11 @@ if [ ! -f "$DATA/pagila/film.parquet" ]; then
 
     # One Parquet per non-partitioned table.
     for tbl in film customer rental inventory actor film_actor category film_category language staff store address city country; do
-        duckdb -c "COPY (SELECT * FROM read_csv_auto('$TMPDIR/tsv/$tbl.tsv', delim='\t', header=true, nullstr='\N')) TO '$DATA/pagila/$tbl.parquet' (FORMAT PARQUET);"
+        duckdb -c "COPY (SELECT * FROM read_csv('$TMPDIR/tsv/$tbl.tsv', delim='\t', header=true, nullstr='\N')) TO '$DATA/pagila/$tbl.parquet' (FORMAT PARQUET);"
     done
 
     # payment is range-partitioned in Pagila (payment_p2022_01..12). Union them.
-    duckdb -c "COPY (SELECT * FROM read_csv_auto('$TMPDIR/tsv/payment_p*.tsv', delim='\t', header=true, nullstr='\N', union_by_name=true)) TO '$DATA/pagila/payment.parquet' (FORMAT PARQUET);"
+    duckdb -c "COPY (SELECT * FROM read_csv('$TMPDIR/tsv/payment_p*.tsv', delim='\t', header=true, nullstr='\N', union_by_name=true)) TO '$DATA/pagila/payment.parquet' (FORMAT PARQUET);"
 
     rm -rf "$TMPDIR"
 fi
